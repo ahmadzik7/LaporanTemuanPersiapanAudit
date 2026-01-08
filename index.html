@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laporan 5R/5S - Before & After</title>
+
+<style>
+:root{
+  --primary:#1976d2;
+  --bg:#f2f4f7;
+  --card:#ffffff;
+  --border:#e0e0e0;
+}
+body{
+  font-family:Segoe UI,Arial,sans-serif;
+  background:var(--bg);
+  padding:20px;
+}
+.container{
+  max-width:1000px;
+  margin:auto;
+  background:var(--card);
+  padding:24px;
+  border-radius:14px;
+  box-shadow:0 10px 30px rgba(0,0,0,.08);
+}
+h1{text-align:center;color:var(--primary)}
+.form-group{margin-bottom:14px}
+label{font-weight:600;display:block;margin-bottom:6px}
+input,select,button,textarea{
+  width:100%;
+  padding:12px;
+  border-radius:8px;
+  border:1px solid var(--border);
+}
+.card{
+  margin-top:20px;
+  padding:16px;
+  background:#fafafa;
+  border-left:5px solid var(--primary);
+  border-radius:10px;
+}
+.photo-preview{
+  width:100%;
+  height:120px;
+  object-fit:cover;
+  border-radius:8px;
+  border:1px solid var(--border);
+  margin-top:8px;
+}
+.actions{display:flex;gap:12px;margin-top:20px}
+button{
+  background:var(--primary);
+  color:#fff;
+  border:none;
+  cursor:pointer;
+  padding:12px;
+}
+button.secondary{
+  background:#e0e0e0;
+  color:#333;
+}
+#loading{text-align:center;margin-top:20px;font-weight:bold;display:none}
+.tabs{
+  display:flex;
+  gap:12px;
+  justify-content:center;
+  margin-bottom:24px;
+}
+.tab-btn{
+  padding:10px 20px;
+  background:#eee;
+  border:none;
+  border-radius:8px;
+  cursor:pointer;
+}
+.tab-btn.active{
+  background:var(--primary);
+  color:white;
+}
+.hidden{display:none;}
+</style>
+</head>
+
+<body>
+
+<div class="tabs">
+  <button type="button" class="tab-btn active" onclick="showTab('before')">📸 Temuan (Before)</button>
+  <button type="button" class="tab-btn" onclick="showTab('after')">✅ Perbaikan (After)</button>
+</div>
+
+<!-- TAB BEFORE -->
+<div id="beforeTab" class="container">
+  <h1>📋 Laporan Temuan (Before)</h1>
+
+  <div class="form-group">
+    <label>Nama Penginput</label>
+    <input type="text" id="nama" required>
+  </div>
+
+  <div class="form-group">
+    <label>Tanggal</label>
+    <input type="date" id="tanggal" required>
+  </div>
+
+  <div id="temuanList"></div>
+
+  <div class="actions">
+    <button type="button" onclick="addTemuan()" class="secondary">➕ Tambah Temuan</button>
+    <button type="button" onclick="submitBefore()">📤 Kirim Temuan</button>
+  </div>
+
+  <div id="kodeResult" style="margin-top:20px; padding:12px; background:#e8f5e9; border-radius:8px; display:none;"></div>
+  <div id="loadingBefore" style="display:none;">⏳ Mengirim...</div>
+</div>
+
+<!-- TAB AFTER -->
+<div id="afterTab" class="container hidden">
+  <h1>✅ Input Foto Perbaikan (After)</h1>
+
+  <div class="form-group">
+    <label>Kode Unik Temuan</label>
+    <input type="text" id="kodeUnik" placeholder="Masukkan kode unik dari temuan sebelumnya" required>
+  </div>
+
+  <button type="button" onclick="openAfterCamera()">📸 Ambil Foto Perbaikan</button>
+  <img id="fotoAfterPreview" class="photo-preview" style="display:none;">
+
+  <div class="actions">
+    <button type="button" onclick="submitAfter()">📤 Kirim Foto After</button>
+  </div>
+
+  <div id="loadingAfter" style="display:none;">⏳ Mengirim...</div>
+</div>
+
+<!-- CAMERA MODAL -->
+<div id="cameraModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:999;align-items:center;justify-content:center">
+  <div style="background:#fff;padding:16px;border-radius:12px;max-width:420px;width:100%">
+    <video id="video" autoplay playsinline style="width:100%;border-radius:10px"></video>
+    <canvas id="canvas" style="display:none"></canvas>
+    <div style="display:flex;gap:10px;margin-top:10px">
+      <button type="button" onclick="takePhoto()">📸 Ambil Foto</button>
+      <button type="button" onclick="closeCamera()" class="secondary">❌ Tutup</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx5DRCSP8aLiCgVYO0eE7vdVIZtit9YIHwIMmOnOUsWOz8gyONfK1sfHRuZ1YB0VoB1/exec";
+
+let temuanIndex = 0;
+let camTarget = null;
+let currentStream = null;
+
+function showTab(tab) {
+  document.getElementById('beforeTab').classList.toggle('hidden', tab !== 'before');
+  document.getElementById('afterTab').classList.toggle('hidden', tab !== 'after');
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  if (tab === 'before') document.querySelector('.tab-btn:nth-child(1)').classList.add('active');
+  else document.querySelector('.tab-btn:nth-child(2)').classList.add('active');
+}
+
+function addTemuan() {
+  temuanIndex++;
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML = `
+    <h3>Temuan #${temuanIndex}</h3>
+    <div class="form-group">
+      <label>Bagian</label>
+      <input type="text" id="bagian_${temuanIndex}" placeholder="Contoh: Palletizing, Retail, Storage, dll" required>
+    </div>
+    <div class="form-group">
+      <label>Lokasi</label>
+      <input type="text" id="lokasi_${temuanIndex}" placeholder="Contoh: Packing,filling kempu, retail filling dll" required>
+    </div>
+    <div class="form-group">
+      <label>Deskripsi Temuan</label>
+      <textarea id="deskripsi_${temuanIndex}" rows="3" placeholder="Jelaskan kondisi atau ketidaksesuaian yang ditemukan"></textarea>
+    </div>
+    <button type="button" onclick="openBeforeCamera(${temuanIndex})">📸 Ambil Foto Before</button>
+    <img id="fotoBefore_${temuanIndex}" class="photo-preview" style="display:none;">
+  `;
+  document.getElementById('temuanList').appendChild(div);
+}
+
+// === KAMERA ===
+async function openCamera(target) {
+  camTarget = target;
+  document.getElementById('cameraModal').style.display = "flex";
+  try {
+    currentStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    document.getElementById('video').srcObject = currentStream;
+  } catch (err) {
+    alert("Gagal akses kamera: " + (err.message || err));
+    closeCamera();
+  }
+}
+
+function openBeforeCamera(index) {
+  openCamera(`before_${index}`);
+}
+
+function openAfterCamera() {
+  openCamera('after');
+}
+
+function takePhoto() {
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = video.videoWidth || 320;
+  canvas.height = video.videoHeight || 240;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const imgSrc = canvas.toDataURL("image/jpeg", 0.85);
+
+  if (camTarget === 'after') {
+    const img = document.getElementById('fotoAfterPreview');
+    img.src = imgSrc;
+    img.style.display = 'block';
+  } else if (camTarget.startsWith('before_')) {
+    const index = camTarget.split('_')[1];
+    const img = document.getElementById(`fotoBefore_${index}`);
+    img.src = imgSrc;
+    img.style.display = 'block';
+  }
+
+  closeCamera();
+}
+
+function closeCamera() {
+  document.getElementById('cameraModal').style.display = "none";
+  if (currentStream) {
+    currentStream.getTracks().forEach(t => t.stop());
+    currentStream = null;
+  }
+}
+
+// === KIRIM BEFORE ===
+async function submitBefore() {
+  const nama = document.getElementById("nama").value.trim();
+  const tanggal = document.getElementById("tanggal").value;
+
+  if (!nama || !tanggal) {
+    alert("Nama dan Tanggal wajib diisi!");
+    return;
+  }
+
+  if (temuanIndex === 0) {
+    alert("Silakan tambahkan minimal satu temuan.");
+    return;
+  }
+
+  const temuanList = [];
+  const kodeUnikList = [];
+
+  for (let i = 1; i <= temuanIndex; i++) {
+    const bagian = document.getElementById(`bagian_${i}`).value.trim();
+    const lokasi = document.getElementById(`lokasi_${i}`).value.trim();
+    const deskripsi = document.getElementById(`deskripsi_${i}`).value.trim();
+    const fotoBeforeSrc = document.getElementById(`fotoBefore_${i}`).src;
+
+    if (!bagian || !lokasi || !deskripsi) {
+      alert(`Temuan #${i}: Bagian, Lokasi, dan Deskripsi wajib diisi.`);
+      return;
+    }
+
+    if (!fotoBeforeSrc || !fotoBeforeSrc.startsWith('data:image')) {
+      alert(`Temuan #${i}: Foto before belum diambil.`);
+      return;
+    }
+
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.random().toString(36).substring(2,6).toUpperCase();
+    const kodeUnik = "TS" + timestamp + random;
+
+    kodeUnikList.push(kodeUnik);
+    temuanList.push({
+      kode_unik: kodeUnik,
+      bagian,
+      lokasi,
+      deskripsi,
+      foto_before: fotoBeforeSrc
+    });
+  }
+
+  const loading = document.getElementById('loadingBefore');
+  loading.style.display = "block";
+
+  try {
+    const payload = {
+      action: "submit_before",
+      nama,
+      tanggal,
+      temuan: temuanList
+    };
+
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" }
+    });
+
+    if (res.ok) {
+      let msg = "<strong>✅ Temuan berhasil dikirim!</strong><br>Kode Unik:<br><ul>";
+      kodeUnikList.forEach(k => msg += `<li><code>${k}</code></li>`);
+      msg += "</ul>";
+
+      document.getElementById('kodeResult').innerHTML = msg;
+      document.getElementById('kodeResult').style.display = "block";
+
+      // Jika hanya 1 temuan, isi otomatis di form after
+      if (kodeUnikList.length === 1) {
+        document.getElementById('kodeUnik').value = kodeUnikList[0];
+      }
+
+      // Pindah ke tab After
+      showTab('after');
+
+    } else {
+      const text = await res.text();
+      alert("❌ Server error: " + text);
+    }
+  } catch (e) {
+    alert("❌ Gagal mengirim: " + (e.message || "Koneksi bermasalah"));
+    console.error(e);
+  } finally {
+    loading.style.display = "none";
+  }
+}
+
+// === KIRIM AFTER ===
+async function submitAfter() {
+  const kodeUnik = document.getElementById("kodeUnik").value.trim();
+  const fotoAfter = document.getElementById("fotoAfterPreview").src;
+
+  if (!kodeUnik) {
+    alert("Masukkan kode unik temuan!");
+    return;
+  }
+
+  if (!fotoAfter || !fotoAfter.startsWith("data:image")) {
+    alert("Ambil foto perbaikan terlebih dahulu!");
+    return;
+  }
+
+  const loading = document.getElementById('loadingAfter');
+  loading.style.display = "block";
+
+  try {
+    const payload = {
+      action: "submit_after",
+      kode_unik: kodeUnik,
+      foto_after: fotoAfter
+    };
+
+    const res = await fetch(WEB_APP_URL, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: { "Content-Type": "application/json" }
+    });
+
+    if (res.ok) {
+      alert("✅ Foto after berhasil dikirim!");
+      // Kosongkan form after
+      document.getElementById("kodeUnik").value = "";
+      document.getElementById("fotoAfterPreview").style.display = "none";
+      document.getElementById("fotoAfterPreview").src = "";
+    } else {
+      const text = await res.text();
+      alert("❌ Gagal: " + text);
+    }
+  } catch (e) {
+    alert("❌ Error: " + (e.message || "Cek koneksi"));
+    console.error(e);
+  } finally {
+    loading.style.display = "none";
+  }
+}
+
+// Inisialisasi
+addTemuan();
+</script>
+</body>
+</html>
