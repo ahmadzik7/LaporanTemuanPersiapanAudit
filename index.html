@@ -297,11 +297,12 @@ async function submitBefore() {
       temuan: temuanList
     };
 
-    const res = await fetch(WEB_APP_URL, {
-      method: "POST",
-      body: JSON.stringify(payload),
-      headers: { "Content-Type": "application/json" }
-    });
+   const res = await fetch(WEB_APP_URL, {
+  method: "POST",
+  body: JSON.stringify(payload),
+  headers: { "Content-Type": "text/plain;charset=utf-8" }
+});
+
 
     if (res.ok) {
       let msg = "<strong>✅ Temuan berhasil dikirim!</strong><br>Kode Unik:<br><ul>";
@@ -356,11 +357,12 @@ async function submitAfter() {
       foto_after: fotoAfter
     };
 
-    const res = await fetch(WEB_APP_URL, {
-      method: "POST",
-      body: JSON.stringify(payload),
-      headers: { "Content-Type": "application/json" }
-    });
+  const res = await fetch(WEB_APP_URL, {
+  method: "POST",
+  body: JSON.stringify(payload),
+  headers: { "Content-Type": "text/plain;charset=utf-8" }
+});
+
 
     if (res.ok) {
       alert("✅ Foto after berhasil dikirim!");
@@ -386,4 +388,5 @@ addTemuan();
 </body>
 
 </html>
+
 
